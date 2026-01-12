@@ -1,5 +1,15 @@
 {
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/" }
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.menusent.com"
+        }
+      ],
+      "destination": "https://menusent.com/$1",
+      "permanent": true
+    }
   ]
 }
