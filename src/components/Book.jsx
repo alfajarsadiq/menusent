@@ -17,7 +17,7 @@ import {
   Vector3,
 } from "three";
 import { degToRad } from "three/src/math/MathUtils.js";
-import { pageAtom, pages } from "./UI";
+import { pageAtom } from "./UI"; // Removed 'pages' import
 
 const easingFactor = 0.5;
 const easingFactorFold = 0.3;
@@ -74,16 +74,12 @@ const pageMaterials = [
   new MeshStandardMaterial({ color: whiteColor }),
 ];
 
-pages.forEach((page) => {
-  useTexture.preload(`/textures/${page.front}.jpg`);
-  useTexture.preload(`/textures/${page.back}.jpg`);
-});
+// Removed the static 'pages.forEach' preload loop here because pages are now dynamic.
 
 const Page = ({ number, front, back, page, opened, bookClosed, ...props }) => {
-  const [picture, picture2] = useTexture([
-    `/textures/${front}.jpg`,
-    `/textures/${back}.jpg`,
-  ]);
+  // FIXED: Use the exact path passed from props, don't add "/textures/" or ".jpg" manually
+  const [picture, picture2] = useTexture([front, back]);
+  
   picture.colorSpace = picture2.colorSpace = SRGBColorSpace;
   const group = useRef();
   const turnedAt = useRef(0);
@@ -112,14 +108,14 @@ const Page = ({ number, front, back, page, opened, bookClosed, ...props }) => {
       new MeshStandardMaterial({
         color: whiteColor,
         map: picture,
-        roughness: 0.5, // <--- CHANGED THIS from 0.1 to 0.5 (Matte finish)
+        roughness: 0.5, 
         emissive: emissiveColor,
         emissiveIntensity: 0,
       }),
       new MeshStandardMaterial({
         color: whiteColor,
         map: picture2,
-        roughness: 0.5, // <--- CHANGED THIS from 0.1 to 0.5 (Matte finish)
+        roughness: 0.5, 
         emissive: emissiveColor,
         emissiveIntensity: 0,
       }),
@@ -131,7 +127,7 @@ const Page = ({ number, front, back, page, opened, bookClosed, ...props }) => {
     mesh.add(skeleton.bones[0]);
     mesh.bind(skeleton);
     return mesh;
-  }, []);
+  }, [picture, picture2]); // FIXED: Added dependencies so materials update when textures change
 
   useFrame((_, delta) => {
     if (!skinnedMeshRef.current) {
@@ -233,7 +229,8 @@ const Page = ({ number, front, back, page, opened, bookClosed, ...props }) => {
   );
 };
 
-export const Book = ({ ...props }) => {
+// FIXED: Accept 'pages' as a prop
+export const Book = ({ pages, ...props }) => {
   const [page] = useAtom(pageAtom);
   const [delayedPage, setDelayedPage] = useState(page);
 
@@ -267,7 +264,8 @@ export const Book = ({ ...props }) => {
 
   return (
     <group {...props} rotation-y={-Math.PI / 2}>
-      {[...pages].map((pageData, index) => (
+      {/* FIXED: Map over the 'pages' prop instead of the imported variable */}
+      {pages.map((pageData, index) => (
         <Page
           key={index}
           page={delayedPage}
