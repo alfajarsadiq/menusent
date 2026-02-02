@@ -17,7 +17,7 @@ import {
   Vector3,
 } from "three";
 import { degToRad } from "three/src/math/MathUtils.js";
-import { pageAtom } from "./UI"; // Removed 'pages' import
+import { pageAtom } from "./UI";
 
 const easingFactor = 0.5;
 const easingFactorFold = 0.3;
@@ -25,44 +25,10 @@ const insideCurveStrength = 0.18;
 const outsideCurveStrength = 0.05;
 const turningCurveStrength = 0.09;
 
-const PAGE_WIDTH = 1.28;
+// Fixed constants
 const PAGE_HEIGHT = 1.71;
 const PAGE_DEPTH = 0.003;
 const PAGE_SEGMENTS = 30;
-const SEGMENT_WIDTH = PAGE_WIDTH / PAGE_SEGMENTS;
-
-const pageGeometry = new BoxGeometry(
-  PAGE_WIDTH,
-  PAGE_HEIGHT,
-  PAGE_DEPTH,
-  PAGE_SEGMENTS,
-  2
-);
-
-pageGeometry.translate(PAGE_WIDTH / 2, 0, 0);
-
-const position = pageGeometry.attributes.position;
-const vertex = new Vector3();
-const skinIndexes = [];
-const skinWeights = [];
-
-for (let i = 0; i < position.count; i++) {
-  vertex.fromBufferAttribute(position, i);
-  const x = vertex.x;
-  const skinIndex = Math.max(0, Math.floor(x / SEGMENT_WIDTH));
-  let skinWeight = (x % SEGMENT_WIDTH) / SEGMENT_WIDTH;
-  skinIndexes.push(skinIndex, skinIndex + 1, 0, 0);
-  skinWeights.push(1 - skinWeight, skinWeight, 0, 0);
-}
-
-pageGeometry.setAttribute(
-  "skinIndex",
-  new Uint16BufferAttribute(skinIndexes, 4)
-);
-pageGeometry.setAttribute(
-  "skinWeight",
-  new Float32BufferAttribute(skinWeights, 4)
-);
 
 const whiteColor = new Color("white");
 const emissiveColor = new Color("orange");
@@ -74,20 +40,59 @@ const pageMaterials = [
   new MeshStandardMaterial({ color: whiteColor }),
 ];
 
-// Removed the static 'pages.forEach' preload loop here because pages are now dynamic.
+// --- HELPER: Generate geometry dynamically based on width ---
+const createPageGeometry = (width) => {
+  const segmentWidth = width / PAGE_SEGMENTS;
+  const geometry = new BoxGeometry(
+    width,
+    PAGE_HEIGHT,
+    PAGE_DEPTH,
+    PAGE_SEGMENTS,
+    2
+  );
 
-const Page = ({ number, front, back, page, opened, bookClosed, ...props }) => {
-  // FIXED: Use the exact path passed from props, don't add "/textures/" or ".jpg" manually
+  geometry.translate(width / 2, 0, 0);
+
+  const position = geometry.attributes.position;
+  const vertex = new Vector3();
+  const skinIndexes = [];
+  const skinWeights = [];
+
+  for (let i = 0; i < position.count; i++) {
+    vertex.fromBufferAttribute(position, i);
+    const x = vertex.x;
+    const skinIndex = Math.max(0, Math.floor(x / segmentWidth));
+    let skinWeight = (x % segmentWidth) / segmentWidth;
+    skinIndexes.push(skinIndex, skinIndex + 1, 0, 0);
+    skinWeights.push(1 - skinWeight, skinWeight, 0, 0);
+  }
+
+  geometry.setAttribute(
+    "skinIndex",
+    new Uint16BufferAttribute(skinIndexes, 4)
+  );
+  geometry.setAttribute(
+    "skinWeight",
+    new Float32BufferAttribute(skinWeights, 4)
+  );
+
+  return { geometry, segmentWidth };
+};
+
+const Page = ({ number, front, back, page, opened, bookClosed, width, ...props }) => {
   const [picture, picture2] = useTexture([front, back]);
-  
   picture.colorSpace = picture2.colorSpace = SRGBColorSpace;
+  
   const group = useRef();
   const turnedAt = useRef(0);
   const lastOpened = useRef(opened);
-
   const skinnedMeshRef = useRef();
 
+  // --- MEMOIZED MESH GENERATION ---
   const manualSkinnedMesh = useMemo(() => {
+    // Generate geometry specifically for this width
+    const { geometry, segmentWidth } = createPageGeometry(width);
+
     const bones = [];
     for (let i = 0; i <= PAGE_SEGMENTS; i++) {
       let bone = new Bone();
@@ -95,7 +100,7 @@ const Page = ({ number, front, back, page, opened, bookClosed, ...props }) => {
       if (i === 0) {
         bone.position.x = 0;
       } else {
-        bone.position.x = SEGMENT_WIDTH;
+        bone.position.x = segmentWidth;
       }
       if (i > 0) {
         bones[i - 1].add(bone);
@@ -108,31 +113,30 @@ const Page = ({ number, front, back, page, opened, bookClosed, ...props }) => {
       new MeshStandardMaterial({
         color: whiteColor,
         map: picture,
-        roughness: 0.5, 
+        roughness: 0.5,
         emissive: emissiveColor,
         emissiveIntensity: 0,
       }),
       new MeshStandardMaterial({
         color: whiteColor,
         map: picture2,
-        roughness: 0.5, 
+        roughness: 0.5,
         emissive: emissiveColor,
         emissiveIntensity: 0,
       }),
     ];
-    const mesh = new SkinnedMesh(pageGeometry, materials);
+    
+    const mesh = new SkinnedMesh(geometry, materials);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.frustumCulled = false;
     mesh.add(skeleton.bones[0]);
     mesh.bind(skeleton);
     return mesh;
-  }, [picture, picture2]); // FIXED: Added dependencies so materials update when textures change
+  }, [picture, picture2, width]); // Re-run if width changes
 
   useFrame((_, delta) => {
-    if (!skinnedMeshRef.current) {
-      return;
-    }
+    if (!skinnedMeshRef.current) return;
 
     const emissiveIntensity = highlighted ? 0.22 : 0;
     skinnedMeshRef.current.material[4].emissiveIntensity =
@@ -176,13 +180,7 @@ const Page = ({ number, front, back, page, opened, bookClosed, ...props }) => {
           foldRotationAngle = 0;
         }
       }
-      easing.dampAngle(
-        target.rotation,
-        "y",
-        rotationAngle,
-        easingFactor,
-        delta
-      );
+      easing.dampAngle(target.rotation, "y", rotationAngle, easingFactor, delta);
 
       const foldIntensity =
         i > 8
@@ -229,8 +227,7 @@ const Page = ({ number, front, back, page, opened, bookClosed, ...props }) => {
   );
 };
 
-// FIXED: Accept 'pages' as a prop
-export const Book = ({ pages, ...props }) => {
+export const Book = ({ pages, width = 1.28, ...props }) => {
   const [page] = useAtom(pageAtom);
   const [delayedPage, setDelayedPage] = useState(page);
 
@@ -264,7 +261,6 @@ export const Book = ({ pages, ...props }) => {
 
   return (
     <group {...props} rotation-y={-Math.PI / 2}>
-      {/* FIXED: Map over the 'pages' prop instead of the imported variable */}
       {pages.map((pageData, index) => (
         <Page
           key={index}
@@ -272,6 +268,7 @@ export const Book = ({ pages, ...props }) => {
           number={index}
           opened={delayedPage > index}
           bookClosed={delayedPage === 0 || delayedPage === pages.length}
+          width={width} // Pass the width prop down to Page
           {...pageData}
         />
       ))}
