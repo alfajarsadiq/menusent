@@ -9,18 +9,15 @@ import { UI } from "./components/UI";
 import Home from "./pages/Home"; 
 
 // --- DATA CONFIGURATION ---
-// This acts as your "database" for now. 
-// Ensure the keys (grilltown, seabrill) match your folder names in /public/textures/
 const restaurants = {
   grilltown: {
     name: "Grill Town",
     logo: "/images/grilltown.png",
     whatsapp: "971566368870",
-    // Just the filenames, we will build the full path dynamically
     cover: "front.jpg",
     back: "back.jpg",
-    // internal pages in order
-    pages: ["page1.jpg", "page2.jpg", "page3.jpg"] 
+    pages: ["page1.jpg", "page2.jpg", "page3.jpg"],
+    width: 1.28 // Standard Width
   },
   seabrill: {
     name: "Seabrill",
@@ -28,64 +25,47 @@ const restaurants = {
     whatsapp: "971501111111", 
     cover: "front.jpg",
     back: "back.jpg",
-    pages: ["page1.jpg", "page2.jpg", "page3.jpg"]
+    pages: ["page1.jpg", "page2.jpg", "page3.jpg"],
+    width: 1.28 // Standard Width
+  },
+  spiceroutes: {
+    name: "The Spice Routes",
+    logo: "/images/spicerouteslogo.png", 
+    whatsapp: "7050534343", 
+    cover: "front.jpg",
+    back: "back.jpg",
+    pages: ["page1.jpg", "page2.jpg", "page3.jpg", "page4.jpg"], // 4 Pages
+    width: 0.765 // Calculated: 1.71 * (917 / 2048)
   }
 };
 
 const MenuExperience = () => {
   const { slug } = useParams(); 
   
-  // 1. Get specific data, fallback to grilltown if slug is wrong
+  // 1. Get specific data, fallback to grilltown
   const data = restaurants[slug] || restaurants["grilltown"];
-  // Used to build paths (e.g., /textures/seabrill/)
   const folder = slug && restaurants[slug] ? slug : "grilltown"; 
 
-  // 2. Build the Page Pairs (Front/Back) for the Book
+  // 2. Build the Page Pairs (Front/Back)
   const bookPages = useMemo(() => {
     const path = `/textures/${folder}`;
+    
+    // Create a flat list of all faces in order: [Cover, P1, P2, P3... Back]
+    const allFaces = [
+      data.cover, 
+      ...data.pages, 
+      data.back
+    ];
+
     const pagesList = [];
 
-    // --- SHEET 1: Cover & First Page ---
-    pagesList.push({
-      front: `${path}/${data.cover}`,
-      back: `${path}/${data.pages[0]}`
-    });
-
-    // --- MIDDLE SHEETS ---
-    // This loops through remaining pages creating pairs
-    for (let i = 1; i < data.pages.length - 1; i += 2) {
+    // Loop through the faces in pairs (0&1, 2&3, etc.)
+    for (let i = 0; i < allFaces.length; i += 2) {
       pagesList.push({
-        front: `${path}/${data.pages[i]}`,
-        back: `${path}/${data.pages[i + 1]}`
+        front: `${path}/${allFaces[i]}`,
+        // If there is no "back" partner (odd number of faces), repeat the last one or leave blank
+        back: `${path}/${allFaces[i + 1] || allFaces[i]}`
       });
-    }
-
-    // --- LAST SHEET: Last Page & Back Cover ---
-    // Check if we have an odd page left over to pair with the back cover
-    const lastContentPage = data.pages[data.pages.length - 1];
-    // Avoid re-adding the last page if it was already included in the loop above
-    // (Simple logic: just pair the very last content item with the back cover)
-    
-    // Note: For your specific 3-page setup (Page1, Page2, Page3), 
-    // The loop above handles Page2 & Page3. 
-    // Wait, strictly: 
-    // Sheet 1: Cover / Page 1
-    // Sheet 2: Page 2 / Page 3
-    // Sheet 3: ... Back Cover?
-    
-    // Let's force the Back Cover to appear as the final "back" of the last sheet
-    // If you add more pages, you might want to adjust this logic.
-    // For now, let's append a final sheet that is strictly [Last Page] -> [Back Cover]
-    // If the loop already covered all pages, we add a specific Back Cover sheet.
-    
-    // SIMPLIFIED LOGIC FOR YOUR CURRENT FILES:
-    if(data.pages.length > 1) {
-       // If we handled up to Page 3 in the loop, we might need one last sheet for the Back Cover
-       // Actually, let's just push a dedicated Back Cover sheet for safety
-       pagesList.push({
-         front: `${path}/${data.pages[data.pages.length - 1]}`, 
-         back: `${path}/${data.back}`
-       });
     }
 
     return pagesList;
@@ -93,7 +73,6 @@ const MenuExperience = () => {
 
   return (
     <>
-      {/* Pass Dynamic Data to UI */}
       <UI logo={data.logo} whatsapp={data.whatsapp} pages={bookPages} />
       
       <Loader />
@@ -107,8 +86,8 @@ const MenuExperience = () => {
       >
         <group position-x={0} position-y={0}>
           <Suspense fallback={null}>
-            {/* Pass Dynamic Pages to Experience */}
-            <Experience pages={bookPages} />
+            {/* UPDATED: Pass the specific width to Experience */}
+            <Experience pages={bookPages} width={data.width} />
           </Suspense>
         </group>
       </Canvas>
