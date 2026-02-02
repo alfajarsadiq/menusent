@@ -1,22 +1,22 @@
 import { Environment, Float, OrbitControls } from "@react-three/drei";
 import { Book } from "./Book";
-import { useAtom } from "jotai"; // IMPORT: Needed for state management
-import { pauseAtom } from "./UI"; // IMPORT: The pause state created in UI.jsx
+import { useAtom } from "jotai"; 
+import { pauseAtom } from "./UI"; 
 
-export const Experience = ({ pages }) => {
-  const [paused] = useAtom(pauseAtom); // GET STATE: Check if animation should be paused
+// UPDATED: Accept 'width' as a prop alongside 'pages'
+export const Experience = ({ pages, width }) => {
+  const [paused] = useAtom(pauseAtom); 
 
   return (
     <>
       <Float
         rotation-x={-Math.PI / 4}
-        // If paused is true, set intensities/speed to 0 to stop movement
         floatIntensity={paused ? 0 : 1}
         speed={paused ? 0 : 2}
         rotationIntensity={paused ? 0 : 2}
       >
-        {/* Pass the pages prop down to the Book component */}
-        <Book pages={pages} />
+        {/* UPDATED: Pass the width prop to Book so it knows the correct size */}
+        <Book pages={pages} width={width} />
       </Float>
       <OrbitControls />
       <Environment preset="studio"></Environment>
