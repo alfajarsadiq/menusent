@@ -80,7 +80,8 @@ const MenuExperience = () => {
       <Canvas
         shadows
         camera={{
-          position: [-0.5, 1, window.innerWidth > 800 ? 3.3 : 9],
+          // UPDATED: Changed mobile Z position from 9 to 4.5 to zoom in on mobile devices
+          position: [-0.5, 1, window.innerWidth > 800 ? 3.3 : 4.5],
           fov: 45,
         }}
       >
