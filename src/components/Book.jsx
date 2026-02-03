@@ -9,6 +9,8 @@ import {
   Color,
   Float32BufferAttribute,
   MathUtils,
+  // IMPORTED MeshBasicMaterial
+  MeshBasicMaterial,
   MeshStandardMaterial,
   Skeleton,
   SkinnedMesh,
@@ -30,6 +32,7 @@ const PAGE_SEGMENTS = 30;
 const whiteColor = new Color("white");
 const emissiveColor = new Color("orange");
 
+// Keep spine/edges as Standard for some 3D depth, or could be Basic too.
 const pageMaterials = [
   new MeshStandardMaterial({ color: whiteColor }),
   new MeshStandardMaterial({ color: "#111" }),
@@ -107,19 +110,17 @@ const Page = ({ number, front, back, page, opened, bookClosed, width, totalPages
 
     const materials = [
       ...pageMaterials,
-      new MeshStandardMaterial({
+      // UPDATED: Use MeshBasicMaterial for the pages with images.
+      // This ignores lights/shadows and shows the "exact coloring" of the image.
+      new MeshBasicMaterial({
         color: whiteColor,
         map: picture,
-        roughness: 1, // Matte
-        emissive: emissiveColor,
-        emissiveIntensity: 0,
+        toneMapped: false, // Prevents colors from being washed out by renderer
       }),
-      new MeshStandardMaterial({
+      new MeshBasicMaterial({
         color: whiteColor,
         map: picture2,
-        roughness: 1, // Matte
-        emissive: emissiveColor,
-        emissiveIntensity: 0,
+        toneMapped: false, // Prevents colors from being washed out by renderer
       }),
     ];
     
@@ -137,35 +138,25 @@ const Page = ({ number, front, back, page, opened, bookClosed, width, totalPages
   useFrame((_, delta) => {
     if (!skinnedMeshRef.current) return;
 
-    // Emissive highlight logic
-    const emissiveIntensity = highlighted ? 0.22 : 0;
-    skinnedMeshRef.current.material[4].emissiveIntensity =
-      skinnedMeshRef.current.material[5].emissiveIntensity = MathUtils.lerp(
-        skinnedMeshRef.current.material[4].emissiveIntensity,
-        emissiveIntensity,
-        0.1
-      );
+    // REMOVED: Emissive highlight logic
+    // (MeshBasicMaterial does not support emissive intensity in the same way, 
+    // and it was likely interfering with the pure color look)
 
     if (lastOpened.current !== opened) {
       turnedAt.current = +new Date();
       lastOpened.current = opened;
     }
     
-    // --- UPDATED ROTATION LOGIC ---
-    // Start with closed position (0 degrees)
+    // --- ROTATION LOGIC ---
     let targetRotation = 0;
     
     if (opened) {
-      // If page is turned (on the left side), rotate -180 degrees (PI)
       targetRotation = -Math.PI / 2; 
     } else {
-      // If page is waiting (on the right side), rotate 0 (or slight angle for stacking)
       targetRotation = Math.PI / 2;
     }
 
-    // Add slight offset based on page number to prevent z-fighting (clipping)
     if (!bookClosed) {
-       // Pages on left stack slightly tilted one way, pages on right tilted other way
        const offset = number * 0.005; 
        targetRotation += opened ? offset : -offset;
     }
@@ -174,16 +165,13 @@ const Page = ({ number, front, back, page, opened, bookClosed, width, totalPages
     for (let i = 0; i < bones.length; i++) {
       const target = i === 0 ? group.current : bones[i];
 
-      // FLATTEN LOGIC: Only rotate the spine (group/bone 0)
       let rotationAngle = 0;
       if (i === 0) {
           rotationAngle = targetRotation;
       }
 
-      // No folding/bending
       let foldRotationAngle = 0; 
 
-      // Apply rotations
       easing.dampAngle(target.rotation, "y", rotationAngle, easingFactor, delta);
       easing.dampAngle(target.rotation, "x", foldRotationAngle, easingFactorFold, delta);
     }
