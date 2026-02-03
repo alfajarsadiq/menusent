@@ -1,23 +1,19 @@
-import { Environment, Float, OrbitControls } from "@react-three/drei";
+import { Environment, OrbitControls } from "@react-three/drei";
 import { Book } from "./Book";
 import { useAtom } from "jotai"; 
 import { pauseAtom } from "./UI"; 
 
-// UPDATED: Accept 'width' as a prop alongside 'pages'
 export const Experience = ({ pages, width }) => {
   const [paused] = useAtom(pauseAtom); 
 
   return (
     <>
-      <Float
-        rotation-x={-Math.PI / 4}
-        floatIntensity={paused ? 0 : 1}
-        speed={paused ? 0 : 2}
-        rotationIntensity={paused ? 0 : 2}
-      >
-        {/* UPDATED: Pass the width prop to Book so it knows the correct size */}
+      {/* REPLACED Float WITH group TO STOP FLYING ANIMATION */}
+      {/* rotation-x is kept so the book stays tilted at the correct viewing angle */}
+      <group rotation-x={-Math.PI / 4}>
         <Book pages={pages} width={width} />
-      </Float>
+      </group>
+
       <OrbitControls />
       <Environment preset="studio"></Environment>
       <directionalLight
