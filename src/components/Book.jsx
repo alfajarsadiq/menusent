@@ -21,9 +21,6 @@ import { pageAtom } from "./UI";
 
 const easingFactor = 0.5;
 const easingFactorFold = 0.3;
-const insideCurveStrength = 0.18;
-const outsideCurveStrength = 0.05;
-const turningCurveStrength = 0.09;
 
 // Fixed constants
 const PAGE_HEIGHT = 1.71;
@@ -79,7 +76,7 @@ const createPageGeometry = (width) => {
   return { geometry, segmentWidth };
 };
 
-const Page = ({ number, front, back, page, opened, bookClosed, width, ...props }) => {
+const Page = ({ number, front, back, page, opened, bookClosed, width, totalPages, ...props }) => {
   const [picture, picture2] = useTexture([front, back]);
   picture.colorSpace = picture2.colorSpace = SRGBColorSpace;
   
@@ -113,31 +110,34 @@ const Page = ({ number, front, back, page, opened, bookClosed, width, ...props }
       new MeshStandardMaterial({
         color: whiteColor,
         map: picture,
-        roughness: 0.5,
+        roughness: 1, // Matte
         emissive: emissiveColor,
         emissiveIntensity: 0,
       }),
       new MeshStandardMaterial({
         color: whiteColor,
         map: picture2,
-        roughness: 0.5,
+        roughness: 1, // Matte
         emissive: emissiveColor,
         emissiveIntensity: 0,
       }),
     ];
     
     const mesh = new SkinnedMesh(geometry, materials);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    
+    mesh.castShadow = false; 
+    mesh.receiveShadow = false;
+    
     mesh.frustumCulled = false;
     mesh.add(skeleton.bones[0]);
     mesh.bind(skeleton);
     return mesh;
-  }, [picture, picture2, width]); // Re-run if width changes
+  }, [picture, picture2, width]); 
 
   useFrame((_, delta) => {
     if (!skinnedMeshRef.current) return;
 
+    // Emissive highlight logic
     const emissiveIntensity = highlighted ? 0.22 : 0;
     skinnedMeshRef.current.material[4].emissiveIntensity =
       skinnedMeshRef.current.material[5].emissiveIntensity = MathUtils.lerp(
@@ -150,49 +150,42 @@ const Page = ({ number, front, back, page, opened, bookClosed, width, ...props }
       turnedAt.current = +new Date();
       lastOpened.current = opened;
     }
-    let turningTime = Math.min(400, new Date() - turnedAt.current) / 400;
-    turningTime = Math.sin(turningTime * Math.PI);
+    
+    // --- UPDATED ROTATION LOGIC ---
+    // Start with closed position (0 degrees)
+    let targetRotation = 0;
+    
+    if (opened) {
+      // If page is turned (on the left side), rotate -180 degrees (PI)
+      targetRotation = -Math.PI / 2; 
+    } else {
+      // If page is waiting (on the right side), rotate 0 (or slight angle for stacking)
+      targetRotation = Math.PI / 2;
+    }
 
-    let targetRotation = opened ? -Math.PI / 2 : Math.PI / 2;
+    // Add slight offset based on page number to prevent z-fighting (clipping)
     if (!bookClosed) {
-      targetRotation += degToRad(number * 0.8);
+       // Pages on left stack slightly tilted one way, pages on right tilted other way
+       const offset = number * 0.005; 
+       targetRotation += opened ? offset : -offset;
     }
 
     const bones = skinnedMeshRef.current.skeleton.bones;
     for (let i = 0; i < bones.length; i++) {
       const target = i === 0 ? group.current : bones[i];
 
-      const insideCurveIntensity = i < 8 ? Math.sin(i * 0.2 + 0.25) : 0;
-      const outsideCurveIntensity = i >= 8 ? Math.cos(i * 0.3 + 0.09) : 0;
-      const turningIntensity =
-        Math.sin(i * Math.PI * (1 / bones.length)) * turningTime;
-      let rotationAngle =
-        insideCurveStrength * insideCurveIntensity * targetRotation -
-        outsideCurveStrength * outsideCurveIntensity * targetRotation +
-        turningCurveStrength * turningIntensity * targetRotation;
-      let foldRotationAngle = degToRad(Math.sign(targetRotation) * 2);
-      if (bookClosed) {
-        if (i === 0) {
+      // FLATTEN LOGIC: Only rotate the spine (group/bone 0)
+      let rotationAngle = 0;
+      if (i === 0) {
           rotationAngle = targetRotation;
-          foldRotationAngle = 0;
-        } else {
-          rotationAngle = 0;
-          foldRotationAngle = 0;
-        }
       }
-      easing.dampAngle(target.rotation, "y", rotationAngle, easingFactor, delta);
 
-      const foldIntensity =
-        i > 8
-          ? Math.sin(i * Math.PI * (1 / bones.length) - 0.5) * turningTime
-          : 0;
-      easing.dampAngle(
-        target.rotation,
-        "x",
-        foldRotationAngle * foldIntensity,
-        easingFactorFold,
-        delta
-      );
+      // No folding/bending
+      let foldRotationAngle = 0; 
+
+      // Apply rotations
+      easing.dampAngle(target.rotation, "y", rotationAngle, easingFactor, delta);
+      easing.dampAngle(target.rotation, "x", foldRotationAngle, easingFactorFold, delta);
     }
   });
 
@@ -266,9 +259,10 @@ export const Book = ({ pages, width = 1.28, ...props }) => {
           key={index}
           page={delayedPage}
           number={index}
+          totalPages={pages.length}
           opened={delayedPage > index}
           bookClosed={delayedPage === 0 || delayedPage === pages.length}
-          width={width} // Pass the width prop down to Page
+          width={width} 
           {...pageData}
         />
       ))}
